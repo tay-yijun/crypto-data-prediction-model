@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"github.com/Aibier/twitter-scrapy/controllers"
+	"twitter-service/controllers"
 
 	"github.com/gin-gonic/gin"
 )

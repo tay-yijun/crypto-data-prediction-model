@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/Aibier/twitter-scrapy/configs"
-	"github.com/Aibier/twitter-scrapy/routes"
+	"twitter-service/configs"
+	"twitter-service/routes"
 
 	"github.com/gin-gonic/gin"
 )

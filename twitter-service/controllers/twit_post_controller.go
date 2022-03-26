@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Aibier/twitter-scrapy/configs"
-	helpers "github.com/Aibier/twitter-scrapy/helper"
-	"github.com/Aibier/twitter-scrapy/models"
-	"github.com/Aibier/twitter-scrapy/responses"
+	"twitter-service/configs"
+	helpers "twitter-service/helper"
+	"twitter-service/models"
+	"twitter-service/responses"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"

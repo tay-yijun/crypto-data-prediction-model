@@ -4,7 +4,7 @@
 3. Postgres as data storage
 
 ##  Architecture Diagram
-![Architecture Diagram](https://github.com/Aibier/twitter-scrapy/blob/main/twitterDiagram.png)
+![Architecture Diagram](https://twitter-service/blob/main/twitterDiagram.png)
 ##  Run with Docker
 
 1. **Build**

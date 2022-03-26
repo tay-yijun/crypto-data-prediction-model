@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/Aibier/twitter-scrapy/controllers"
+	"twitter-service/controllers"
 )
 
 // HandleRequest ...
@@ -28,13 +28,6 @@ func HandleRequest(ctx context.Context, name App) (string, error) {
 type App struct {
 	Name    string
 	Version string
-}
-
-// start server
-func (app *App) start() error {
-
-
-	return nil
 }
 
 func main() {
