@@ -3,6 +3,12 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, LongType, StructField
 from pyspark.sql.window import Window
 from pyspark.sql.functions import col
+"""
+python.exe -m pip install pystan==2.17.1.0
+python.exe -m pip install fbprophet==0.6   
+python.exe -m pip install --upgrade fbprophet
+"""
+# from fbprophet import Prophet
 
 def TimeSeriesSplit(df_m, splitRatio, sparksession):
 
@@ -140,8 +146,17 @@ def main():
     # | 2019 - 12 - 04 | -3.8505859999995664 | 1904 |
 
     # TODO: https://databricks.com/blog/2021/04/06/fine-grained-time-series-forecasting-at-scale-with-facebook-prophet-and-apache-spark-updated-for-spark-3.html
+    # TODO: https://databricks.com/wp-content/uploads/notebooks/fine-grained-demand-forecasting-spark-3.html
 
-
+    # model = Prophet(
+    #   interval_width=0.95,
+    #   growth='linear',
+    #   daily_seasonality=False,
+    #   weekly_seasonality=True,
+    #   yearly_seasonality=True,
+    #   seasonality_mode='multiplicative'
+    #   )
+    # model.fit(train_df.toPandas())
 
 
 if __name__ == "__main__":
