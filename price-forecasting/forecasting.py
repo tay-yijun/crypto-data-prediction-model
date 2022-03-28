@@ -3,12 +3,10 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, LongType, StructField
 from pyspark.sql.window import Window
 from pyspark.sql.functions import col
-"""
-python.exe -m pip install pystan==2.17.1.0
-python.exe -m pip install fbprophet==0.6   
-python.exe -m pip install --upgrade fbprophet
-"""
-# from fbprophet import Prophet
+from fbprophet import Prophet
+from fbprophet.diagnostics import cross_validation
+from fbprophet.diagnostics import performance_metrics
+from fbprophet.plot import plot_cross_validation_metric
 
 def TimeSeriesSplit(df_m, splitRatio, sparksession):
 
@@ -22,9 +20,11 @@ def TimeSeriesSplit(df_m, splitRatio, sparksession):
     df_m2 = sparksession.createDataFrame(new_rdd, newSchema)
     total_rows = df_m2.count()
     splitFraction  =int(total_rows*splitRatio)
-    df_train = df_m2.where(df_m2["Row Number"] >= 0)\
-                   .where(df_m2["Row Number"] <= splitFraction)
-    df_test = df_m2.where(df_m2["Row Number"] > splitFraction)
+    df_train = df_m2.where(df_m2["Row Number"] >= 0) \
+                   .where(df_m2["Row Number"] <= splitFraction) \
+                    .drop("Row Number")
+    df_test = df_m2.where(df_m2["Row Number"] > splitFraction) \
+                    .drop("Row Number")
     
     return df_train, df_test
 
@@ -110,53 +110,63 @@ def main():
                         .withColumn("diff", F.when(F.isnull(col("Open") - col("PrevDayOpen")), 0).otherwise(col("Open") - col("PrevDayOpen")))
     btc_usd_lag_diff.show()
 
-    btc_usd_date_diff = btc_usd_lag_diff.select("Date", "diff")
+    btc_usd_date_diff = btc_usd_lag_diff \
+        .select("Date", "diff") \
+        .withColumnRenamed("Date", "ds") \
+        .withColumnRenamed("diff", "y")
 
     train_df, test_df = TimeSeriesSplit(btc_usd_date_diff, 0.7, spark)
 
     train_df.show()
-    # +----------+-------------------+----------+
-    # | Date | diff | Row
-    # Number |
-    # +----------+-------------------+----------+
+    # +----------+-------------------+
+    # | ds | y |
+    # +----------+-------------------+
     # | 2014 - 0
-    # 9 - 17 | 0.0 | 0 |
+    # 9 - 17 | 0.0 |
     # | 2014 - 0
-    # 9 - 18 | -9.004029000000003 | 1 |
+    # 9 - 18 | -9.004029000000003 |
     # | 2014 - 0
-    # 9 - 19 | -32.75698799999998 | 2 |
+    # 9 - 19 | -32.75698799999998 |
     # | 2014 - 0
-    # 9 - 20 | -29.429993000000024 | 3 |
+    # 9 - 20 | -29.429993000000024 |
     # | 2014 - 0
-    # 9 - 21 | 13.41198700000001 | 4 |
+    # 9 - 21 | 13.41198700000001 |
     # | 2014 - 0
-    # 9 - 22 | -8.984984999999995 | 5 |
-    # | 2014 - 0
-    # 9 - 23 | 2.9920040000000085 | 6 |
+    # 9 - 22 | -8.984984999999995 |
 
     test_df.show()
-    # +----------+-------------------+----------+
-    # | Date | diff | Row
-    # Number |
-    # +----------+-------------------+----------+
-    # | 2019 - 11 - 30 | 297.33007799999996 | 1900 |
-    # | 2019 - 12 - 01 | -192.44091800000024 | 1901 |
-    # | 2019 - 12 - 02 | -147.58007799999996 | 1902 |
-    # | 2019 - 12 - 03 | -100.06054700000004 | 1903 |
-    # | 2019 - 12 - 04 | -3.8505859999995664 | 1904 |
+    # +----------+-------------------+
+    # | ds | y |
+    # +----------+-------------------+
+    # | 2019 - 11 - 30 | 297.33007799999996 |
+    # | 2019 - 12 - 01 | -192.44091800000024 |
+    # | 2019 - 12 - 02 | -147.58007799999996 |
+    # | 2019 - 12 - 03 | -100.06054700000004 |
+    # | 2019 - 12 - 04 | -3.8505859999995664 |
+    # | 2019 - 12 - 05 | -66.88330099999985 |
 
     # TODO: https://databricks.com/blog/2021/04/06/fine-grained-time-series-forecasting-at-scale-with-facebook-prophet-and-apache-spark-updated-for-spark-3.html
     # TODO: https://databricks.com/wp-content/uploads/notebooks/fine-grained-demand-forecasting-spark-3.html
 
-    # model = Prophet(
-    #   interval_width=0.95,
-    #   growth='linear',
-    #   daily_seasonality=False,
-    #   weekly_seasonality=True,
-    #   yearly_seasonality=True,
-    #   seasonality_mode='multiplicative'
-    #   )
-    # model.fit(train_df.toPandas())
+    model = Prophet(
+      interval_width=0.95,
+      growth='linear',
+      daily_seasonality=False,
+      weekly_seasonality=True,
+      yearly_seasonality=True,
+      seasonality_mode='multiplicative'
+      )
+    model.fit(train_df.toPandas())
+
+    # Make a future facing dataset for the next 30 days to forecast out on
+    future = model.make_future_dataframe(periods=30, freq='d')
+    forecast = model.predict(future)
+    print(forecast.head(30))
+    forecast.to_csv("./out/out-sample-30d-forecast.csv", header=True, sep=",")
+
+    # Make forecast on test data
+    test_data_with_forecast = model.predict(test_df.toPandas())
+    test_data_with_forecast.to_csv("./out/test-data-forecast.csv", header=True, sep=",")
 
 
 if __name__ == "__main__":
