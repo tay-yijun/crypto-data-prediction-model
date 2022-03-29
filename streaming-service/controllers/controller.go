@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"streaming-service/configs"
 	helpers "streaming-service/helper"
 	"streaming-service/models"
@@ -20,7 +20,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var coinPriceCollection *mongo.Collection = configs.GetCollection(configs.DB, "posts")
+var coinPriceCollection *mongo.Collection = configs.GetCollection(configs.DB, "transactions")
 
 
 // PerPAGE ...
@@ -29,7 +29,11 @@ const PerPAGE = "100"
 // SyncRecords ...
 func SyncRecords() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		Sync()
+		err := Sync()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, responses.TransactionRecordResponse{Status: http.StatusCreated, Message: err.Error()})
+			return
+		}
 		c.JSON(http.StatusCreated, responses.TransactionRecordResponse{Status: http.StatusCreated, Message: "success"})
 	}
 }
@@ -66,26 +70,29 @@ func GetAllTRecords() gin.HandlerFunc {
 	
 }
 
-func saveIntoDB(cxt context.Context, twitterClient helpers.HTTPClient, path *url.URL) error {
+func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url.URL) error {
 	searchPathQ := path.Query()
-	//searchPathQ.Set("tweet.fields", "source,created_at")
-	//searchPathQ.Set("max_results", "100")
+	searchPathQ.Set("symbol", os.Getenv("COIN_SYMBOL"))
 	path.RawQuery = searchPathQ.Encode()
-	responseData, responseStatusCode, err := twitterClient.MakeRequest(cxt, "GET", path, nil)
+	responseData, responseStatusCode, err := binanceClient.MakeRequest(cxt, "GET", path, nil)
 	if responseStatusCode != 200 {
 		var errResponse responses.ErrorResponse
 		_ = json.Unmarshal(responseData, &errResponse)
 		log.Printf("reponse %v", string(responseData))
 		return fmt.Errorf("bad Request")
 	}
-	var searchResponse responses.RecentSearchAPIResponse
-	err = json.Unmarshal(responseData, &searchResponse)
+	var tradeResponse []models.TransactionRecord
+	err = json.Unmarshal(responseData, &tradeResponse)
 	if err != nil {
 		log.Printf("Unmarshal err: %v", err)
 		return err
 	}
-	log.Printf("PerPAGE: %s, total retrieved: %d", PerPAGE, len(searchResponse.Data))
-	_, err = coinPriceCollection.InsertMany(cxt, searchResponse.Data)
+	tradeResponseBytes := make([]interface{}, len(tradeResponse))
+	for i := range tradeResponse {
+		tradeResponseBytes[i] = tradeResponse[i]
+	}
+	log.Printf("PerPAGE: %s, total retrieved: %d", PerPAGE, len(tradeResponse))
+	_, err = coinPriceCollection.InsertMany(cxt, tradeResponseBytes)
 	if err != nil {
 		log.Printf("failed to save into DB %v", err)
 		return err
@@ -103,14 +110,14 @@ func Sync() error {
 		Password:       os.Getenv("PASSWORD"),
 	}
 	defer cancel()
-	twitterClient, err := helpers.NewHTTPClient(config)
+	binanceClient, err := helpers.NewHTTPClient(config)
 	if err != nil {
 		return err
 	}
-	twitURL, _ := url.Parse(os.Getenv("COIN_MARKET_URL"))
-	searchPath := &url.URL{Path: os.Getenv("SEARCH_PATH")}
-	searchPathURL := twitURL.ResolveReference(searchPath)
-	err = saveIntoDB(cxt, twitterClient, searchPathURL)
+	binanceURL, _ := url.Parse(os.Getenv("BINANCE_URL"))
+	searchPath := &url.URL{Path: os.Getenv("TRADE_PATH")}
+	searchPathURL := binanceURL.ResolveReference(searchPath)
+	err = saveIntoDB(cxt, binanceClient, searchPathURL)
 	if err != nil {
 		return err
 	}

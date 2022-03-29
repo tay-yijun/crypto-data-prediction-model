@@ -9,5 +9,5 @@ import (
 // Routes ...
 func Routes(router *gin.Engine) {
 	router.GET("/sync", controllers.SyncRecords())
-	router.GET("/price-records", controllers.GetAllTRecords())
+	router.GET("/transaction-records", controllers.GetAllTRecords())
 }

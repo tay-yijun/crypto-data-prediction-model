@@ -41,9 +41,11 @@ make scan
 ```
 6. Add env variables
 ```shell script
-export MONGO_URI=
+export MONGO_URI=mongodb://localhost:27017/ 
 export API_TOKEN=
-export COIN_MARKET_URL=
+export COIN_SYMBOL=
+export BINANCE_URL=
+export TRADE_PATH=
 export SEARCH_PATH=
 export PAGINATION_MAX=
 export PAGINATION_MIN=
