@@ -25,12 +25,13 @@ Run
 $ npm run start
 ```
 
-Build
-```
-$ npm run build
-```
-
 Test
 ```
 $ npm run test
+```
+
+Build and deploy with a commit message to `gh-pages` branch
+```
+$ npm run deploy -- -m "Deploy React app to GitHub Pages"
+$ 
 ```
