@@ -2,12 +2,10 @@ import os
 import datetime
 from typing import List
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
+
 import numpy as np
-import pandas as pd
-import seaborn as sns
 import tensorflow as tf
+import pandas as pd
 
 # Refer to https://colab.research.google.com/github/tensorflow/docs/blob/master/site/en/tutorials/structured_data/time_series.ipynb#scrollTo=Kem30j8QHxyW
 
@@ -68,7 +66,67 @@ def split_window(self, features):
 # Add this method into the WindowGenerator class
 WindowGenerator.split_window = split_window
 
+def make_dataset(self, data):
+  data = np.array(data, dtype=np.float32)
+  ds = tf.keras.preprocessing.timeseries_dataset_from_array(
+      data=data,
+      targets=None,
+      sequence_length=self.total_window_size,
+      sequence_stride=1,
+      shuffle=True,
+      batch_size=32,)
 
+  ds = ds.map(self.split_window)
+
+  return ds
+
+# Add this method into the WindowGenerator class
+WindowGenerator.make_dataset = make_dataset
+
+@property
+def train(self):
+  return self.make_dataset(self.train_df)
+
+@property
+def val(self):
+  return self.make_dataset(self.val_df)
+
+@property
+def test(self):
+  return self.make_dataset(self.test_df)
+
+@property
+def example(self):
+  """Get and cache an example batch of `inputs, labels` for plotting."""
+  result = getattr(self, '_example', None)
+  if result is None:
+    # No example batch was found, so get one from the `.train` dataset
+    result = next(iter(self.train))
+    # And cache it for next time
+    self._example = result
+  return result
+
+# Add this method into the WindowGenerator class
+WindowGenerator.train = train
+WindowGenerator.val = val
+WindowGenerator.test = test
+WindowGenerator.example = example
+
+MAX_EPOCHS = 20
+
+def compile_and_fit(model, window, patience=2):
+  early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                    patience=patience,
+                                                    mode='min')
+
+  model.compile(loss=tf.losses.MeanSquaredError(),
+                optimizer=tf.optimizers.Adam(),
+                metrics=[tf.metrics.MeanAbsoluteError()])
+
+  history = model.fit(window.train, epochs=MAX_EPOCHS,
+                      validation_data=window.val,
+                      callbacks=[early_stopping])
+  return history
 
 def main():
     btc_df: pd.DataFrame = pd.read_csv(filepath_or_buffer="./BTC-USD.csv", delimiter=",", header="infer")
@@ -142,6 +200,158 @@ def main():
                                np.asarray(train_df[100:100 + w2.total_window_size]).astype(np.float32),
                                np.asarray(train_df[200:200 + w2.total_window_size]).astype(np.float32)])
     print(example_window)
+
+    print(w2.train.element_spec)
+
+    for example_inputs, example_labels in w2.train.take(1):
+        print(f'Inputs shape (batch, time, features): {example_inputs.shape}')
+        print(f'Labels shape (batch, time, features): {example_labels.shape}')
+        # (TensorSpec(shape=(None, 6, 6), dtype=tf.float32, name=None),
+        #  TensorSpec(shape=(None, 1, 1), dtype=tf.float32, name=None))
+        # Inputs
+        # shape(batch, time, features): (32, 6, 6)
+        # Labels
+        # shape(batch, time, features): (32, 1, 1)
+
+    class Baseline(tf.keras.Model):
+        def __init__(self, label_index=None):
+            super().__init__()
+            self.label_index = label_index
+
+        def call(self, inputs):
+            if self.label_index is None:
+                return inputs
+            result = inputs[:, :, self.label_index]
+            return result[:, :, tf.newaxis]
+
+    print("*** Single Step Window Baseline")
+    single_step_window = WindowGenerator(
+        input_width=1, label_width=1, shift=1,
+        train_df=train_df, val_df=val_df, test_df=test_df,
+        label_columns=["Open"])
+    print(single_step_window)
+
+    baseline = Baseline(label_index=column_indices["Open"])
+    baseline.compile(loss=tf.losses.MeanSquaredError(),
+                     metrics=[tf.metrics.MeanAbsoluteError()])
+
+    val_performance = {}
+    performance = {}
+    val_performance['Baseline'] = baseline.evaluate(single_step_window.val)
+    performance['Baseline'] = baseline.evaluate(single_step_window.test, verbose=0)
+
+    print("*** Wide window")
+    wide_window = WindowGenerator(
+        input_width=24, label_width=24, shift=1,
+        train_df=train_df, val_df=val_df, test_df=test_df,
+        label_columns=['Open'])
+
+    print(wide_window)
+    print('Input shape:', wide_window.example[0].shape)
+    print('Output shape:', baseline(wide_window.example[0]).shape)
+
+    print("*** Linear model")
+    linear = tf.keras.Sequential([
+        tf.keras.layers.Dense(units=1)
+    ])
+    print('Input shape:', single_step_window.example[0].shape)
+    print('Output shape:', linear(single_step_window.example[0]).shape)
+    history = compile_and_fit(linear, single_step_window)
+
+    val_performance['Linear'] = linear.evaluate(single_step_window.val)
+    performance['Linear'] = linear.evaluate(single_step_window.test, verbose=0)
+
+
+    print("*** Dense model")
+    dense = tf.keras.Sequential([
+        tf.keras.layers.Dense(units=64, activation='relu'),
+        tf.keras.layers.Dense(units=64, activation='relu'),
+        tf.keras.layers.Dense(units=1)
+    ])
+
+    history = compile_and_fit(dense, single_step_window)
+
+    val_performance['Dense'] = dense.evaluate(single_step_window.val)
+    performance['Dense'] = dense.evaluate(single_step_window.test, verbose=0)
+
+    print("*** Multi step dense")
+    CONV_WIDTH = 3
+    conv_window = WindowGenerator(
+        input_width=CONV_WIDTH,label_width=1,shift=1,
+        train_df=train_df, val_df=val_df, test_df=test_df,
+        label_columns=['Open'])
+
+    print(conv_window)
+
+    multi_step_dense = tf.keras.Sequential([
+        # Shape: (time, features) => (time*features)
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(units=32, activation='relu'),
+        tf.keras.layers.Dense(units=32, activation='relu'),
+        tf.keras.layers.Dense(units=1),
+        # Add back the time dimension.
+        # Shape: (outputs) => (1, outputs)
+        tf.keras.layers.Reshape([1, -1]),
+    ])
+    print('Input shape:', conv_window.example[0].shape)
+    print('Output shape:', multi_step_dense(conv_window.example[0]).shape)
+
+    history = compile_and_fit(multi_step_dense, conv_window)
+
+    val_performance['Multi step dense'] = multi_step_dense.evaluate(conv_window.val)
+    performance['Multi step dense'] = multi_step_dense.evaluate(conv_window.test, verbose=0)
+
+    print("Convolution neural network")
+    conv_model = tf.keras.Sequential([
+        tf.keras.layers.Conv1D(filters=32,
+                               kernel_size=(CONV_WIDTH,),
+                               activation='relu'),
+        tf.keras.layers.Dense(units=32, activation='relu'),
+        tf.keras.layers.Dense(units=1),
+    ])
+    print("Conv model on `conv_window`")
+    print('Input shape:', conv_window.example[0].shape)
+    print('Output shape:', conv_model(conv_window.example[0]).shape)
+
+    history = compile_and_fit(conv_model, conv_window)
+
+    val_performance['Conv'] = conv_model.evaluate(conv_window.val)
+    performance['Conv'] = conv_model.evaluate(conv_window.test, verbose=0)
+
+    print("*** Wide window convolution neural network")
+    print("Wide window")
+    print('Input shape:', wide_window.example[0].shape)
+    print('Labels shape:', wide_window.example[1].shape)
+    print('Output shape:', conv_model(wide_window.example[0]).shape)
+
+    LABEL_WIDTH = 24
+    INPUT_WIDTH = LABEL_WIDTH + (CONV_WIDTH - 1)
+    wide_conv_window = WindowGenerator(
+        input_width=INPUT_WIDTH,label_width=LABEL_WIDTH,shift=1,
+        train_df=train_df, val_df=val_df, test_df=test_df,
+        label_columns=["Open"])
+
+    print(wide_conv_window)
+    print("*** Wide conv window")
+    print('Input shape:', wide_conv_window.example[0].shape)
+    print('Labels shape:', wide_conv_window.example[1].shape)
+    print('Output shape:', conv_model(wide_conv_window.example[0]).shape)
+
+
+    print("***L STM Recurrent neural network")
+    lstm_model = tf.keras.models.Sequential([
+        # Shape [batch, time, features] => [batch, time, lstm_units]
+        tf.keras.layers.LSTM(32, return_sequences=True),
+        # Shape => [batch, time, features]
+        tf.keras.layers.Dense(units=1)
+    ])
+
+    print('Input shape:', wide_window.example[0].shape)
+    print('Output shape:', lstm_model(wide_window.example[0]).shape)
+
+    history = compile_and_fit(lstm_model, wide_window)
+    val_performance['LSTM'] = lstm_model.evaluate(wide_window.val)
+    performance['LSTM'] = lstm_model.evaluate(wide_window.test, verbose=0)
 
 
 if __name__ == "__main__":
