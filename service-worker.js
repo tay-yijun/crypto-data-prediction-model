@@ -14,7 +14,7 @@
 importScripts("https://storage.googleapis.com/workbox-cdn/releases/3.6.3/workbox-sw.js");
 
 importScripts(
-  "/crypto-data-prediction-model/precache-manifest.85a040ab19603872577b649e45d4b4aa.js"
+  "/crypto-data-prediction-model/precache-manifest.db0e6d0879b5e395623720344267209f.js"
 );
 
 workbox.clientsClaim();

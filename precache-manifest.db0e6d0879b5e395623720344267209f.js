@@ -1,11 +1,11 @@
 self.__precacheManifest = [
   {
-    "revision": "eef5c79fa7d90f1b55a9",
+    "revision": "7bb65815c3d6cf62c938",
     "url": "/crypto-data-prediction-model/static/css/main.92566e4f.chunk.css"
   },
   {
-    "revision": "eef5c79fa7d90f1b55a9",
-    "url": "/crypto-data-prediction-model/static/js/main.eef5c79f.chunk.js"
+    "revision": "7bb65815c3d6cf62c938",
+    "url": "/crypto-data-prediction-model/static/js/main.7bb65815.chunk.js"
   },
   {
     "revision": "9b61cfc952eff2a7f02b",
@@ -16,7 +16,7 @@ self.__precacheManifest = [
     "url": "/crypto-data-prediction-model/static/js/2.a172aef2.chunk.js"
   },
   {
-    "revision": "27f79f39d4ceb9b9e64afba2d896cf1f",
+    "revision": "ebd449b11970c71936b128b7e586cbd1",
     "url": "/crypto-data-prediction-model/index.html"
   }
 ];
