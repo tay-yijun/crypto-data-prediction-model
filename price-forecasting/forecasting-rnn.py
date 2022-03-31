@@ -353,6 +353,8 @@ def main():
     val_performance['LSTM'] = lstm_model.evaluate(wide_window.val)
     performance['LSTM'] = lstm_model.evaluate(wide_window.test, verbose=0)
 
+    # 17/17 [==============================] - 0s 4ms/step - loss: 725149248.0000 - mean_absolute_error: 20433.6250
+
 
 if __name__ == "__main__":
     main()
