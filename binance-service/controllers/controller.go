@@ -9,19 +9,18 @@ import (
 	"os"
 	"time"
 
+	"binance-service/configs"
+	helpers "binance-service/helper"
+	"binance-service/models"
+	"binance-service/responses"
 	log "github.com/sirupsen/logrus"
-	"streaming-service/configs"
-	helpers "streaming-service/helper"
-	"streaming-service/models"
-	"streaming-service/responses"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var coinPriceCollection *mongo.Collection = configs.GetCollection(configs.DB, "price")
-
+var coinPriceCollection *mongo.Collection = configs.GetCollection(configs.DB, "transactions")
 
 // PerPAGE ...
 const PerPAGE = "100"
@@ -42,7 +41,7 @@ func SyncRecords() gin.HandlerFunc {
 func GetAllTRecords() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		var currentPrices []models.TickerPrice
+		var posts []models.TransactionRecord
 		defer cancel()
 
 		results, err := coinPriceCollection.Find(ctx, bson.M{})
@@ -55,19 +54,19 @@ func GetAllTRecords() gin.HandlerFunc {
 		//reading from the db in an optimal way
 		defer results.Close(ctx)
 		for results.Next(ctx) {
-			var singleTransactionRecord models.TickerPrice
+			var singleTransactionRecord models.TransactionRecord
 			if err = results.Decode(&singleTransactionRecord); err != nil {
 				c.JSON(http.StatusInternalServerError, responses.TransactionRecordResponse{Status: http.StatusInternalServerError, Message: "error", Data: map[string]interface{}{"data": err.Error()}})
 			}
 
-			currentPrices = append(currentPrices, singleTransactionRecord)
+			posts = append(posts, singleTransactionRecord)
 		}
 
 		c.JSON(http.StatusOK,
-			responses.TransactionRecordResponse{Status: http.StatusOK, Message: "success", Data: map[string]interface{}{"data": currentPrices}},
+			responses.TransactionRecordResponse{Status: http.StatusOK, Message: "success", Data: map[string]interface{}{"data": posts}},
 		)
 	}
-	
+
 }
 
 func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url.URL) error {
@@ -81,18 +80,18 @@ func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url
 		log.Printf("reponse %v", string(responseData))
 		return fmt.Errorf("bad Request")
 	}
-	var tradeResponse models.CurrentPrice
+	var tradeResponse []models.TransactionRecord
 	err = json.Unmarshal(responseData, &tradeResponse)
 	if err != nil {
 		log.Printf("Unmarshal err: %v", err)
 		return err
 	}
-
-
-	_, err = coinPriceCollection.InsertOne(cxt, &models.TickerPrice{
-		Price: tradeResponse.Price,
-		Time:  time.Now().UTC(),
-	})
+	tradeResponseBytes := make([]interface{}, len(tradeResponse))
+	for i := range tradeResponse {
+		tradeResponseBytes[i] = tradeResponse[i]
+	}
+	log.Printf("PerPAGE: %s, total retrieved: %d", PerPAGE, len(tradeResponse))
+	_, err = coinPriceCollection.InsertMany(cxt, tradeResponseBytes)
 	if err != nil {
 		log.Printf("failed to save into DB %v", err)
 		return err
