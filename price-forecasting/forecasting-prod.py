@@ -1,0 +1,174 @@
+import math
+import os
+import datetime
+from typing import List
+from time import time
+from datetime import timedelta
+from pymongo import MongoClient
+
+import numpy as np
+import tensorflow as tf
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow import keras
+from tensorflow.keras import layers
+
+SAMPLING_RATIO = 0.5
+
+def create_ts_files(dataset,
+                    start_index,
+                    end_index,
+                    history_length,
+                    step_size,
+                    target_step,
+                    num_rows_per_file,
+                    data_folder):
+    assert step_size > 0
+    assert start_index >= 0
+
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+
+    time_lags = sorted(range(target_step + 1, target_step + history_length + 1, step_size), reverse=True)
+    col_names = [f'x_lag{i}' for i in time_lags] + ['y']
+    start_index = start_index + history_length
+    if end_index is None:
+        end_index = len(dataset) - target_step
+
+    rng = range(start_index, end_index)
+    num_rows = len(rng)
+    num_files = math.ceil(num_rows / num_rows_per_file)
+
+    # for each file.
+    print(f'Creating {num_files} files.')
+    for i in range(num_files):
+        filename = f'{data_folder}/ts_file{i}.pkl'
+
+        if i % 10 == 0:
+            print(f'{filename}')
+
+        # get the start and end indices.
+        ind0 = i * num_rows_per_file
+        ind1 = min(ind0 + num_rows_per_file, end_index)
+        data_list = []
+
+        # j in the current timestep. Will need j-n to j-1 for the history. And j + target_step for the target.
+        for j in range(ind0, ind1):
+            indices = range(j - 1, j - history_length - 1, -step_size)
+            data = dataset[sorted(indices) + [j + target_step]]
+
+            # append data to the list.
+            data_list.append(data)
+
+        df_ts = pd.DataFrame(data=data_list, columns=col_names)
+        df_ts.to_pickle(filename)
+
+    return len(col_names) - 1
+
+
+class TimeSeriesLoader:
+    def __init__(self, ts_folder, filename_format):
+        self.ts_folder = ts_folder
+
+        # find the number of files.
+        i = 0
+        file_found = True
+        while file_found:
+            filename = self.ts_folder + '/' + filename_format.format(i)
+            file_found = os.path.exists(filename)
+            if file_found:
+                i += 1
+
+        self.num_files = i
+        self.files_indices = np.arange(self.num_files)
+        self.shuffle_chunks()
+
+    def num_chunks(self):
+        return self.num_files
+
+    def get_chunk(self, idx):
+        assert (idx >= 0) and (idx < self.num_files)
+
+        ind = self.files_indices[idx]
+        filename = self.ts_folder + '/' + filename_format.format(ind)
+        df_ts = pd.read_pickle(filename)
+        num_records = len(df_ts.index)
+
+        features = df_ts.drop('y', axis=1).values
+        target = df_ts['y'].values
+
+        # reshape for input into LSTM. Batch major format.
+        features_batchmajor = np.array(features).reshape(num_records, -1, 1)
+        return features_batchmajor, target
+
+    # this shuffles the order the chunks will be outputted from get_chunk.
+    def shuffle_chunks(self):
+        np.random.shuffle(self.files_indices)
+
+# Source https://towardsdatascience.com/3-steps-to-forecast-time-series-lstm-with-tensorflow-keras-ba88c6f05237
+
+def main():
+    client = MongoClient("mongodb+srv://iadd:ilovecrypto%21%40%23@crypto-data.ynykn.mongodb.net")
+    db = client["golangAPI"]
+    transactions = db["transactions"]
+    #lookback_time = (time() + (7 * 24 * 3600)) * 1000
+    #print(lookback_time)
+    # val = list(transactions.find().sort("time", -1).limit(1))
+
+    training_data = list(transactions.find().sort("time", -1))
+    print(len(training_data))
+
+    print(training_data[:10])
+
+    df = pd.DataFrame.from_dict(training_data)
+    print(df.head())
+    df1 = df.drop(["_id", "id"], axis = 1).sort_values(by="time", ascending=True)
+    df1["date_time"] = (pd.to_datetime(df1["time"], unit='ms'))
+    df2 = df1[["date_time", "price", "qty", "quoteqty"]].sample(frac=0.5)
+    print(df2.columns)
+    print(df2.describe())
+    print(df2.head(100))
+    print(df2["date_time"].min())
+    print(df2["date_time"].max())
+
+
+    test_cutoff_date = df2['date_time'].max() - timedelta(days=1)
+    val_cutoff_date = test_cutoff_date - timedelta(days=1)
+    df_test = df2[df2['date_time'] > test_cutoff_date]
+    df_val = df2[(df2['date_time'] > val_cutoff_date) & (df2['date_time'] <= test_cutoff_date)]
+    df_train = df2[df2['date_time'] <= val_cutoff_date]
+
+    print('Test dates: {} to {}'.format(df_test['date_time'].min(), df_test['date_time'].max()))
+    print('Validation dates: {} to {}'.format(df_val['date_time'].min(), df_val['date_time'].max()))
+    print('Train dates: {} to {}'.format(df_train['date_time'].min(), df_train['date_time'].max()))
+
+    price = df_train['price'].values
+
+    # Scaled to work with Neural networks.
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    price_scaled = scaler.fit_transform(price.reshape(-1, 1)).reshape(-1, )
+
+    history_length = 7*24*60  # The history length in minutes.
+    step_size = 1  # The sampling rate of the history. Eg. If step_size = 1, then values from every minute will be in the history.
+                    #                                       If step size = 10 then values every 10 minutes will be in the history.
+    target_step = 10  # The time step in the future to predict. Eg. If target_step = 0, then predict the next timestep after the end of the history period.
+                      #                                             If target_step = 10 then predict 10 timesteps the next timestep (11 minutes after the end of history).
+
+    # The csv creation returns the number of rows and number of features. We need these values below.
+    num_timesteps = create_ts_files(price_scaled,
+                                    start_index=0,
+                                    end_index=None,
+                                    history_length=history_length,
+                                    step_size=step_size,
+                                    target_step=target_step,
+                                    num_rows_per_file=128*100,
+                                    data_folder='ts_data')
+
+    # I found that the easiest way to do time series with tensorflow is by creating pandas files with the lagged time steps (eg. x{t-1}, x{t-2}...) and
+    # the value to predict y = x{t+n}. We tried doing it using TFRecords, but that API is not very intuitive and lacks working examples for time series.
+    # The resulting file using these parameters is over 17GB. If history_length is increased, or  step_size is decreased, it could get much bigger.
+    # Hard to fit into laptop memory, so need to use other means to load the data from the hard drive.
+
+
+if __name__ == "__main__":
+    main()
