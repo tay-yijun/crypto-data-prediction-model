@@ -5,23 +5,30 @@ const { tableau } = window;
 
 function Dashboard() {
   const [url] = useState(
-    "https://clientreporting.theinformationlab.co.uk/t/PublicDemo/views/PabloTest-Donotdelete/Dashboard1"
+    "https://prod-apnortheast-a.online.tableau.com/t/cryptoviz/views/CryptoDashboard/CryptoDashboard"
   );
   const ref = useRef(null);
 
   let viz;
 
+  const handleResize = () => {
+    resizeViz(viz, window.innerWidth, window.innerHeight);
+  };
+
+  const options = {
+    hideTabs: true,
+    hideToolbar: true,
+    onFirstInteractive: () => handleResize(),
+  };
+
   const initViz = () => {
-    viz = new tableau.Viz(ref.current, url);
+    viz = new tableau.Viz(ref.current, url, options);
     fetchDataAtFixedInterval(viz);
   };
 
   useEffect(initViz, []);
 
   useEffect(() => {
-    const handleResize = () => {
-      resizeViz(viz, window.innerWidth, window.innerHeight);
-    };
     window.addEventListener("resize", handleResize);
   });
 
