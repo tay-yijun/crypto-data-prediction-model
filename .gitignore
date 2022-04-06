@@ -131,3 +131,5 @@ dmypy.json
 
 # output data
 price-forecasting/out/*
+price-forecasting/ts_data
+price-forecasting/ts_val_data
