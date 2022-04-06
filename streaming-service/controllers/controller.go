@@ -9,19 +9,23 @@ import (
 	"os"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/kinesis"
+
 	log "github.com/sirupsen/logrus"
 	"streaming-service/configs"
 	helpers "streaming-service/helper"
 	"streaming-service/models"
 	"streaming-service/responses"
 
-	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	kinesis_producer "streaming-service/kinesis-producer"
 )
 
-var coinPriceCollection *mongo.Collection = configs.GetCollection(configs.DB, "price")
-
+var coinPriceCollection *mongo.Collection = configs.GetCollection(configs.DB, "priceRecords")
 
 // PerPAGE ...
 const PerPAGE = "100"
@@ -67,7 +71,7 @@ func GetAllTRecords() gin.HandlerFunc {
 			responses.TransactionRecordResponse{Status: http.StatusOK, Message: "success", Data: map[string]interface{}{"data": currentPrices}},
 		)
 	}
-	
+
 }
 
 func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url.URL) error {
@@ -88,7 +92,6 @@ func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url
 		return err
 	}
 
-
 	_, err = coinPriceCollection.InsertOne(cxt, &models.TickerPrice{
 		Price: tradeResponse.Price,
 		Time:  time.Now().UTC(),
@@ -97,6 +100,20 @@ func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url
 		log.Printf("failed to save into DB %v", err)
 		return err
 	}
+	kc, err := kinesis_producer.GetProducer()
+	if err != nil {
+		log.Printf("failed to produceer create AWS  %v", err)
+	}
+	streamName := aws.String(os.Getenv("KINESIS_STREAM_NAME"))
+	putOutput, err := kc.PutRecord(&kinesis.PutRecordInput{
+		Data:         responseData,
+		StreamName:   streamName,
+		PartitionKey: aws.String("key1"),
+	})
+	if err != nil {
+		log.Printf("failed to send data to producer %v", err)
+	}
+	log.Printf("AWS kinesis output: %s", putOutput.String())
 	return nil
 }
 

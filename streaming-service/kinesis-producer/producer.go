@@ -1,22 +1,16 @@
-package main
+package kinesis_producer
 
 import (
-	"fmt"
-	"io/ioutil"
-	"log"
 	"os"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
-
-	"github.com/joho/godotenv"
 )
 
-var (
-	producer AWSKinesis
-)
+
 
 // AWSKinesis struct contain all field needed in kinesis stream
 type AWSKinesis struct {
@@ -28,13 +22,9 @@ type AWSKinesis struct {
 	sessionToken    string
 }
 
-// initiate configuration
-func init() {
-	e := godotenv.Load() //Load .env file
-	if e != nil {
-		fmt.Print(e)
-	}
-	producer = AWSKinesis{
+// GetKinesis ...
+func GetKinesis()  AWSKinesis {
+	return AWSKinesis{
 		stream:          os.Getenv("KINESIS_STREAM_NAME"),
 		region:          os.Getenv("KINESIS_REGION"),
 		endpoint:        os.Getenv("AWS_ENDPOINT"),
@@ -44,8 +34,8 @@ func init() {
 	}
 }
 
-func main() {
-	// connect to aws-kinesis
+func GetProducer() (*kinesis.Kinesis, error) {
+	producer := GetKinesis()
 	s := session.New(&aws.Config{
 		Region:      aws.String(producer.region),
 		Endpoint:    aws.String(producer.endpoint),
@@ -54,40 +44,23 @@ func main() {
 	kc := kinesis.New(s)
 	streamName := aws.String(producer.stream)
 	_, err := kc.DescribeStream(&kinesis.DescribeStreamInput{StreamName: streamName})
-
 	//if no stream name in AWS
 	if err != nil {
-		log.Panic(err)
+		return nil, err
 	}
-
-	// prepare data that will be sent. We use data.json file as example data
-	data := openFile()
-
-	// put data to stream
-	putOutput, err := kc.PutRecord(&kinesis.PutRecordInput{
-		Data:         []byte(data),
-		StreamName:   streamName,
-		PartitionKey: aws.String("key1"),
+	out, err := kc.CreateStream(&kinesis.CreateStreamInput{
+		ShardCount: aws.Int64(1),
+		StreamName: streamName,
 	})
-	if err != nil {
-		panic(err)
+	if out.GoString() == "ACTIVE" {
+		log.Printf("Streamnames was created, and status is: %s", out.GoString())
+	} else if out.GoString() == "CREATING_FAILED" {
+		log.Printf("Streamnames was falied to create, and status is: %s", out.GoString())
 	}
-	fmt.Printf("%v\n", *putOutput)
-}
-
-// used to open file json
-func openFile() string {
-	// Open our jsonFile
-	jsonFile, err := os.Open("data.json")
-	// if we os.Open returns an error then handle it
+	//if no stream name in AWS
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
-	fmt.Println("Successfully Opened data.json")
-	// defer the closing of our jsonFile so that we can parse it later on
-	defer jsonFile.Close()
 
-	byteValue, _ := ioutil.ReadAll(jsonFile)
-
-	return string(byteValue)
+	return kc, nil
 }
