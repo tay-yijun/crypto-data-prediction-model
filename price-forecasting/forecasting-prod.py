@@ -15,8 +15,8 @@ from sklearn.preprocessing import MinMaxScaler
 from tensorflow import keras
 from tensorflow.keras import layers
 
-SAMPLING_RATIO = 0.1
-HISTORY_STEPS = 3*24*60
+SAMPLING_RATIO = 0.5
+HISTORY_STEPS = 5*24*60
 STEP_SIZE = 10
 PICKLE_MODEL = False
 
@@ -304,6 +304,9 @@ def main():
     y_pred_baseline = df_val_ts['x_lag11'].values
     y_pred_baseline = scaler.inverse_transform(y_pred_baseline.reshape(-1, 1)).reshape(-1, )
     print('validation baseline mean squared error: {}'.format(mean_squared_error(y_act, y_pred_baseline)))
+
+    output_df = pd.DataFrame(data=np.column_stack((y_pred_baseline, y_pred, y_act)), columns=["baseline", "lstm", "actual"])
+    output_df.to_csv(path_or_buf="out/predictions-lstm.csv", header=True)
 
 
 if __name__ == "__main__":
