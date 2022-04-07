@@ -13,16 +13,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/kinesis"
-
 	log "github.com/sirupsen/logrus"
 	"streaming-service/configs"
 	helpers "streaming-service/helper"
 	"streaming-service/models"
 	"streaming-service/responses"
-
-	kinesis_producer "streaming-service/kinesis-producer"
 )
 
 var coinPriceCollection *mongo.Collection = configs.GetCollection(configs.DB, "priceRecords")
@@ -33,7 +28,7 @@ const PerPAGE = "100"
 // SyncRecords ...
 func SyncRecords() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		err := Sync()
+		err, _ := Sync()
 		if err != nil {
 			c.JSON(http.StatusBadRequest, responses.TransactionRecordResponse{Status: http.StatusCreated, Message: err.Error()})
 			return
@@ -74,7 +69,7 @@ func GetAllTRecords() gin.HandlerFunc {
 
 }
 
-func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url.URL) error {
+func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url.URL) (error, []byte) {
 	searchPathQ := path.Query()
 	searchPathQ.Set("symbol", os.Getenv("COIN_SYMBOL"))
 	path.RawQuery = searchPathQ.Encode()
@@ -83,13 +78,13 @@ func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url
 		var errResponse responses.ErrorResponse
 		_ = json.Unmarshal(responseData, &errResponse)
 		log.Printf("reponse %v", string(responseData))
-		return fmt.Errorf("bad Request")
+		return fmt.Errorf("bad Request"), nil
 	}
 	var tradeResponse models.CurrentPrice
 	err = json.Unmarshal(responseData, &tradeResponse)
 	if err != nil {
 		log.Printf("Unmarshal err: %v", err)
-		return err
+		return err, nil
 	}
 
 	_, err = coinPriceCollection.InsertOne(cxt, &models.TickerPrice{
@@ -98,27 +93,13 @@ func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url
 	})
 	if err != nil {
 		log.Printf("failed to save into DB %v", err)
-		return err
+		return err, nil
 	}
-	kc, err := kinesis_producer.GetProducer()
-	if err != nil {
-		log.Printf("failed to produceer create AWS  %v", err)
-	}
-	streamName := aws.String(os.Getenv("KINESIS_STREAM_NAME"))
-	putOutput, err := kc.PutRecord(&kinesis.PutRecordInput{
-		Data:         responseData,
-		StreamName:   streamName,
-		PartitionKey: aws.String("key1"),
-	})
-	if err != nil {
-		log.Printf("failed to send data to producer %v", err)
-	}
-	log.Printf("AWS kinesis output: %s", putOutput.String())
-	return nil
+	return nil, responseData
 }
 
 // Sync ...
-func Sync() error {
+func Sync() (error, []byte) {
 	cxt, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	config := helpers.HttPConfig{
 		RequestTimeout: 30,
@@ -129,14 +110,17 @@ func Sync() error {
 	defer cancel()
 	binanceClient, err := helpers.NewHTTPClient(config)
 	if err != nil {
-		return err
+		return err, nil
 	}
 	binanceURL, _ := url.Parse(os.Getenv("BINANCE_URL"))
 	searchPath := &url.URL{Path: os.Getenv("TRADE_PATH")}
 	searchPathURL := binanceURL.ResolveReference(searchPath)
-	err = saveIntoDB(cxt, binanceClient, searchPathURL)
+	err, data := saveIntoDB(cxt, binanceClient, searchPathURL)
 	if err != nil {
-		return err
+		return err, nil
 	}
-	return nil
+	if err != nil {
+		return err, nil
+	}
+	return nil, data
 }
