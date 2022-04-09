@@ -16,7 +16,7 @@ func HandleRequest(ctx context.Context, name App) (string, error) {
 	log.SetFormatter(&log.JSONFormatter{})
 	log.WithFields(
 		log.Fields{
-			"AppName":   "Coin Market Migration",
+			"AppName":   "Binance Service",
 			"AppVersion": "v1",
 		}).Info("Starting the app...")
 	log.Printf("Job is started at %s", time.Now().Local().String())
