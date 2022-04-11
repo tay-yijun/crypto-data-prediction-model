@@ -11,13 +11,13 @@ from tensorflow.keras import layers
 
 PICKLE_MODEL = True
 MODEL_OUT_PATH = "model"
-SAMPLING_RATIO = 0.1
+SAMPLING_RATIO = 0.75
 
 
 # Source https://towardsdatascience.com/3-steps-to-forecast-time-series-lstm-with-tensorflow-keras-ba88c6f05237
 # Another good source https://colab.research.google.com/drive/1wWvtA5RC6-is6J8W86wzK52Knr3N1Xbm
 def main():
-    df2: pd.DataFrame = get_transactions(lookback_in_days=DAYS_OF_DATA_FOR_TRAINING, sampling_ratio=0.1)
+    df2: pd.DataFrame = get_transactions(lookback_in_days=DAYS_OF_DATA_FOR_TRAINING, sampling_ratio=SAMPLING_RATIO)
     print(f"Dataframe has dimensions {df2.size}")
 
     val_cutoff_date = df2['date_time'].max() - timedelta(days=2)
