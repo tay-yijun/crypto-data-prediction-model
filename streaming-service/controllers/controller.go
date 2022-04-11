@@ -9,19 +9,18 @@ import (
 	"os"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+
 	log "github.com/sirupsen/logrus"
 	"streaming-service/configs"
 	helpers "streaming-service/helper"
 	"streaming-service/models"
 	"streaming-service/responses"
-
-	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var coinPriceCollection *mongo.Collection = configs.GetCollection(configs.DB, "transactions")
-
+var coinPriceCollection *mongo.Collection = configs.GetCollection(configs.DB, "priceRecords")
 
 // PerPAGE ...
 const PerPAGE = "100"
@@ -29,7 +28,7 @@ const PerPAGE = "100"
 // SyncRecords ...
 func SyncRecords() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		err := Sync()
+		err, _ := Sync()
 		if err != nil {
 			c.JSON(http.StatusBadRequest, responses.TransactionRecordResponse{Status: http.StatusCreated, Message: err.Error()})
 			return
@@ -42,7 +41,7 @@ func SyncRecords() gin.HandlerFunc {
 func GetAllTRecords() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		var posts []models.TransactionRecord
+		var currentPrices []models.TickerPrice
 		defer cancel()
 
 		results, err := coinPriceCollection.Find(ctx, bson.M{})
@@ -55,22 +54,22 @@ func GetAllTRecords() gin.HandlerFunc {
 		//reading from the db in an optimal way
 		defer results.Close(ctx)
 		for results.Next(ctx) {
-			var singleTransactionRecord models.TransactionRecord
+			var singleTransactionRecord models.TickerPrice
 			if err = results.Decode(&singleTransactionRecord); err != nil {
 				c.JSON(http.StatusInternalServerError, responses.TransactionRecordResponse{Status: http.StatusInternalServerError, Message: "error", Data: map[string]interface{}{"data": err.Error()}})
 			}
 
-			posts = append(posts, singleTransactionRecord)
+			currentPrices = append(currentPrices, singleTransactionRecord)
 		}
 
 		c.JSON(http.StatusOK,
-			responses.TransactionRecordResponse{Status: http.StatusOK, Message: "success", Data: map[string]interface{}{"data": posts}},
+			responses.TransactionRecordResponse{Status: http.StatusOK, Message: "success", Data: map[string]interface{}{"data": currentPrices}},
 		)
 	}
-	
+
 }
 
-func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url.URL) error {
+func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url.URL) (error, []byte) {
 	searchPathQ := path.Query()
 	searchPathQ.Set("symbol", os.Getenv("COIN_SYMBOL"))
 	path.RawQuery = searchPathQ.Encode()
@@ -79,29 +78,28 @@ func saveIntoDB(cxt context.Context, binanceClient helpers.HTTPClient, path *url
 		var errResponse responses.ErrorResponse
 		_ = json.Unmarshal(responseData, &errResponse)
 		log.Printf("reponse %v", string(responseData))
-		return fmt.Errorf("bad Request")
+		return fmt.Errorf("bad Request"), nil
 	}
-	var tradeResponse []models.TransactionRecord
+	var tradeResponse models.CurrentPrice
 	err = json.Unmarshal(responseData, &tradeResponse)
 	if err != nil {
 		log.Printf("Unmarshal err: %v", err)
-		return err
+		return err, nil
 	}
-	tradeResponseBytes := make([]interface{}, len(tradeResponse))
-	for i := range tradeResponse {
-		tradeResponseBytes[i] = tradeResponse[i]
-	}
-	log.Printf("PerPAGE: %s, total retrieved: %d", PerPAGE, len(tradeResponse))
-	_, err = coinPriceCollection.InsertMany(cxt, tradeResponseBytes)
+
+	_, err = coinPriceCollection.InsertOne(cxt, &models.TickerPrice{
+		Price: tradeResponse.Price,
+		Time:  time.Now().UTC(),
+	})
 	if err != nil {
 		log.Printf("failed to save into DB %v", err)
-		return err
+		return err, nil
 	}
-	return nil
+	return nil, responseData
 }
 
 // Sync ...
-func Sync() error {
+func Sync() (error, []byte) {
 	cxt, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	config := helpers.HttPConfig{
 		RequestTimeout: 30,
@@ -112,14 +110,17 @@ func Sync() error {
 	defer cancel()
 	binanceClient, err := helpers.NewHTTPClient(config)
 	if err != nil {
-		return err
+		return err, nil
 	}
 	binanceURL, _ := url.Parse(os.Getenv("BINANCE_URL"))
 	searchPath := &url.URL{Path: os.Getenv("TRADE_PATH")}
 	searchPathURL := binanceURL.ResolveReference(searchPath)
-	err = saveIntoDB(cxt, binanceClient, searchPathURL)
+	err, data := saveIntoDB(cxt, binanceClient, searchPathURL)
 	if err != nil {
-		return err
+		return err, nil
 	}
-	return nil
+	if err != nil {
+		return err, nil
+	}
+	return nil, data
 }
