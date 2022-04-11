@@ -1,20 +1,12 @@
-import math
-import os
-import datetime
-import pickle
-import sys
-from typing import List
-from time import time, sleep
+
 from datetime import timedelta
 
-from common import MONGO_USER, MONGO_PASSWORD, MONGO_HOST, create_ts_files, TimeSeriesLoader, get_mongo_client, get_transactions, DAYS_OF_DATA_FOR_TRAINING, HISTORY_STEPS, STEP_SIZE
-from pymongo import MongoClient
+from common import create_ts_files, TimeSeriesLoader, get_transactions, DAYS_OF_DATA_FOR_TRAINING, HISTORY_STEPS, STEP_SIZE
 import numpy as np
 import tensorflow as tf
 import pandas as pd
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
-from tensorflow import keras
 from tensorflow.keras import layers
 
 PICKLE_MODEL = True

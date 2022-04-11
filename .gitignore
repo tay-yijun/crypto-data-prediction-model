@@ -23,10 +23,9 @@ __pycache__
 
 # output data
 price-forecasting/out/*
-<<<<<<< HEAD
 price-forecasting/ts_data
 price-forecasting/ts_val_data
-=======
+price-forecasting/ts_forecasting_data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

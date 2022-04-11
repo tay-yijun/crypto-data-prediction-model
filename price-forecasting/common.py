@@ -61,7 +61,7 @@ def create_ts_files(dataset,
         print(f'Pickling {filename}')
         df_ts.to_pickle(filename)
 
-    return len(col_names) - 1
+    return len(col_names) - 1, num_files
 
 
 class TimeSeriesLoader:
@@ -136,3 +136,6 @@ def get_transactions(lookback_in_days: int, sampling_ratio: float) -> pd.DataFra
     print(df2["date_time"].max())
 
     return df2
+
+def make_forecast_df(model, data_file: str) -> pd.DataFrame:
+    pass
