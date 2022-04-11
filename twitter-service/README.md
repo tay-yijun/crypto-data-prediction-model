@@ -1,7 +1,8 @@
 # twitter-api-integration
 1. Public endpoint for ad-hoc request
 2. AWS CloudWatch to make a scheduler
-3. Postgres as data storage
+3. MongoDB as data storage
+4. AWS Kinesis as real time streaming tools
 
 ##  Architecture Diagram
 ![Architecture Diagram](https://twitter-service/blob/main/twitterDiagram.png)
