@@ -10,8 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/kinesis"
 )
 
-
-
 // AWSKinesis struct contain all field needed in kinesis stream
 type AWSKinesis struct {
 	stream          string
@@ -23,7 +21,7 @@ type AWSKinesis struct {
 }
 
 // GetKinesis ...
-func GetKinesis()  AWSKinesis {
+func GetKinesis() AWSKinesis {
 	return AWSKinesis{
 		stream:          os.Getenv("KINESIS_STREAM_NAME"),
 		region:          os.Getenv("KINESIS_REGION"),

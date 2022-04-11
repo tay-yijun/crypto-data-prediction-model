@@ -31,15 +31,19 @@ func HandleRequest(ctx context.Context, name App) (string, error) {
 	if os.Getenv("KINESIS_PRODUCER_ENABLED") == "enabled" {
 		kc, err := kinesisProducer.GetProducer()
 		if err != nil {
-			log.Printf("failed to produceer create AWS  %v", err)
+			log.Printf("failed to producer create AWS  %v", err)
 		}
 		streamName := aws.String(os.Getenv("KINESIS_STREAM_NAME"))
-		putOutput, err := kc.PutRecord(&kinesis.PutRecordInput{
+		putOutput, recordErr := kc.PutRecord(&kinesis.PutRecordInput{
 			Data:         data,
 			StreamName:   streamName,
-			PartitionKey: aws.String("key1"),
+			PartitionKey: aws.String(os.Getenv("PARTITION_KEY")),
 		})
-		log.Printf("AWS kinesis output: %s", putOutput.String())
+		if recordErr != nil {
+			log.Printf("failed to put data to producer:  %v", err)
+		} else {
+			log.Printf("Data is sent to stream %s successfully, AWS kinesis output: %s", os.Getenv("KINESIS_STREAM_NAME"), putOutput.String())
+		}
 	}
 	log.Printf("At the end of my job, let's rest now! Completed time %s", time.Now().Local().String())
 	return fmt.Sprintf("Resources are saved %s by!", name.Name), nil
