@@ -1,17 +1,9 @@
 import React from "react";
-import { Route } from "react-router-dom";
-
-import BasicEmbed from "../components/BasicEmbed";
-import Home from "../components/Home";
-import Animation from "../components/Animation";
+import Dashboard from "../components/Dashboard";
 
 function Main() {
   return (
-    <section>
-      <Route path="/" exact component={Home} />
-      <Route path="/embed/" component={BasicEmbed} />
-      <Route path="/animation/" component={Animation} />
-    </section>
+    <Dashboard />
   );
 }
 
