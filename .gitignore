@@ -30,4 +30,6 @@ price-forecasting/ts_forecasting_data
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
->>>>>>> 75ff1c3b87ed8b23b59ccecb28535b0508d76174
+
+# Ignore virtualenv
+venv/

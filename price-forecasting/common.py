@@ -4,14 +4,19 @@ import math
 
 import numpy as np
 import pandas as pd
+import psycopg2
 from pymongo import MongoClient
+from sklearn.preprocessing import MinMaxScaler
 
 MONGO_USER = "iadd"
 MONGO_PASSWORD = "ilovecrypto%21%40%23"
 MONGO_HOST = "crypto-data.ynykn.mongodb.net"
+POSTGRES_USER = "postgres"
+POSTGRES_PASSWORD = "bitcointothemoon123"
+POSTGRES_HOST = "crypto-db.cgadniixqbky.ap-southeast-1.rds.amazonaws.com"
 
 DAYS_OF_DATA_FOR_TRAINING = 10
-DAYS_OF_DATA_FOR_FORECASTING = 1
+DAYS_OF_DATA_FOR_FORECASTING = 0.5
 HISTORY_STEPS = 2*24*60
 STEP_SIZE = 10
 
@@ -137,5 +142,24 @@ def get_transactions(lookback_in_days: int, sampling_ratio: float) -> pd.DataFra
 
     return df2
 
-def make_forecast_df(model, data_file: str) -> pd.DataFrame:
-    pass
+def make_forecast_df(model, df: pd.DataFrame, scaler: MinMaxScaler) -> pd.DataFrame:
+    features = df.drop('y', axis=1).values
+    features_arr = np.array(features)
+
+    # reshape for input into LSTM. Batch major format.
+    num_records = len(df.index)
+    features_batchmajor = features_arr.reshape(num_records, -1, 1)
+
+    y_pred = model.predict(features_batchmajor).reshape(-1, )
+    y_pred = scaler.inverse_transform(y_pred.reshape(-1, 1)).reshape(-1, )
+
+    return y_pred
+
+def get_postgres_connection():
+    return psycopg2.connect(user=POSTGRES_USER,
+                            password=POSTGRES_PASSWORD,
+                            host=POSTGRES_HOST,
+                            port="5432",
+                            database="postgres")
+
+

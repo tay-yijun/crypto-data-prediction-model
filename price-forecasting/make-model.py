@@ -1,7 +1,7 @@
 
 from datetime import timedelta
 
-from common import create_ts_files, TimeSeriesLoader, get_transactions, DAYS_OF_DATA_FOR_TRAINING, HISTORY_STEPS, STEP_SIZE
+from common import create_ts_files, TimeSeriesLoader, get_transactions, DAYS_OF_DATA_FOR_TRAINING, HISTORY_STEPS, STEP_SIZE, make_forecast_df
 import numpy as np
 import tensorflow as tf
 import pandas as pd
@@ -11,12 +11,13 @@ from tensorflow.keras import layers
 
 PICKLE_MODEL = True
 MODEL_OUT_PATH = "model"
+SAMPLING_RATIO = 0.1
 
 
 # Source https://towardsdatascience.com/3-steps-to-forecast-time-series-lstm-with-tensorflow-keras-ba88c6f05237
 # Another good source https://colab.research.google.com/drive/1wWvtA5RC6-is6J8W86wzK52Knr3N1Xbm
 def main():
-    df2: pd.DataFrame = get_transactions(lookback_in_days=DAYS_OF_DATA_FOR_TRAINING, sampling_ratio=0.5)
+    df2: pd.DataFrame = get_transactions(lookback_in_days=DAYS_OF_DATA_FOR_TRAINING, sampling_ratio=0.1)
     print(f"Dataframe has dimensions {df2.size}")
 
     val_cutoff_date = df2['date_time'].max() - timedelta(days=2)
@@ -38,7 +39,7 @@ def main():
                       #                                             If target_step = 10 then predict 10 timesteps the next timestep (11 minutes after the end of history).
 
     # The csv creation returns the number of rows and number of features. We need these values below.
-    num_timesteps = create_ts_files(price_scaled,
+    num_timesteps, no_file_created = create_ts_files(price_scaled,
                                     start_index=0,
                                     end_index=None,
                                     history_length=history_length,
@@ -57,7 +58,7 @@ def main():
 
     # Create the Keras model.
     # Use hyperparameter optimization if you have the time.
-    ts_inputs = tf.keras.Input(shape=(int(HISTORY_STEPS), 1))
+    ts_inputs = tf.keras.Input(shape=(int(num_timesteps), 1))
 
     # units=10 -> The cell and hidden states will be of dimension 10.
     #             The number of parameters that need to be trained = 4*units*(units+2)
@@ -113,22 +114,14 @@ def main():
                                     data_folder='ts_val_data')
 
     # If we assume that the validation dataset can fit into memory we can do this.
+    # If we assume that the validation dataset can fit into memory we can do this.
     df_val_ts: pd.DataFrame = pd.read_pickle('ts_val_data/ts_file0.pkl')
 
-    print("validation dataset")
+    print("dataset")
     print(df_val_ts.head())
     print(df_val_ts.size)
 
-
-    features = df_val_ts.drop('y', axis=1).values
-    features_arr = np.array(features)
-
-    # reshape for input into LSTM. Batch major format.
-    num_records = len(df_val_ts.index)
-    features_batchmajor = features_arr.reshape(num_records, -1, 1)
-
-    y_pred = model.predict(features_batchmajor).reshape(-1, )
-    y_pred = scaler.inverse_transform(y_pred.reshape(-1, 1)).reshape(-1, )
+    y_pred = make_forecast_df(df=df_val_ts, model=model, scaler=scaler)
 
     y_act = df_val_ts['y'].values
     y_act = scaler.inverse_transform(y_act.reshape(-1, 1)).reshape(-1, )

@@ -129,7 +129,7 @@ def compile_and_fit(model, window, patience=2):
   return history
 
 def main():
-    btc_df: pd.DataFrame = pd.read_csv(filepath_or_buffer="./BTC-USD.csv", delimiter=",", header="infer")
+    btc_df: pd.DataFrame = pd.read_csv(filepath_or_buffer="data/BTC-USD.csv", delimiter=",", header="infer")
     print(btc_df.head())
     #            Date        Open        High  ...       Close   Adj Close    Volume
     # 0  2014-09-17  465.864014  468.174011  ...  457.334015  457.334015  21056800
