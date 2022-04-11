@@ -2,6 +2,8 @@ package controller
 
 import (
 	"encoding/json"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -28,9 +30,10 @@ func GetKinesisConsumer() error {
 	}
 	// retrieve iterator
 	iteratorOutput, err := kc.GetShardIterator(&kinesis.GetShardIteratorInput{
-		ShardId:           aws.String(*streams.StreamDescription.Shards[0].ShardId),
-		ShardIteratorType: aws.String("AT_SEQUENCE_NUMBER"),
-		StreamName: streamName,
+		ShardId: aws.String(*streams.StreamDescription.Shards[0].ShardId),
+		// TRIM_HORIZON - Start reading at the last untrimmed record in the shard in the system, which is the oldest data record in the shard.
+		ShardIteratorType:      aws.String("TRIM_HORIZON"),
+		StreamName:             streamName,
 	})
 	if err != nil {
 		log.WithError(err).Infof("Failed to read from shareds: %s", *streams.StreamDescription.Shards[0].ShardId)
@@ -40,11 +43,17 @@ func GetKinesisConsumer() error {
 	shardIterator := iteratorOutput.ShardIterator
 	var a *string
 
+	var limit = os.Getenv("KINESIS_RECORD_LIMIT")
+	if limit == "" {
+		limit = "1000"
+	}
+	limitInt, _ := strconv.ParseInt(limit, 10, 64)
 	// get data using infinity looping
 	// we will attempt to consume data every 1 seconds, if no data, nothing will be happened
 	for {
 		// get records use shard iterator for making request
 		records, err := kc.GetRecords(&kinesis.GetRecordsInput{
+			Limit:         aws.Int64(limitInt),
 			ShardIterator: shardIterator,
 		})
 

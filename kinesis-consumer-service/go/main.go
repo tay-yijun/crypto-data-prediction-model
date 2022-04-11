@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"kinesis_consumer_service/controller"
+	"github.com/aws/aws-lambda-go/events"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -11,7 +11,7 @@ import (
 )
 
 // HandleRequest ...
-func HandleRequest(ctx context.Context, name App) (string, error) {
+func HandleRequest(ctx context.Context, kinesisEvent events.KinesisEvent) (string, error) {
 	log.SetFormatter(&log.JSONFormatter{})
 	log.WithFields(
 		log.Fields{
@@ -19,18 +19,17 @@ func HandleRequest(ctx context.Context, name App) (string, error) {
 			"AppVersion": "v1",
 		}).Info("Starting the app...")
 	log.Printf("Job is started at %s", time.Now().Local().String())
-	err := controller.GetKinesisConsumer()
-	if err != nil {
-		return "", err
+	for _, record := range kinesisEvent.Records {
+		kinesisRecord := record.Kinesis
+		dataBytes := kinesisRecord.Data
+		dataText := string(dataBytes)
+		fmt.Printf("%s Data = %s \n", record.EventName, dataText)
+		// todo:
+		// 1. result := GetPredictionResult(kinesisRecord.Data) -> Call sentiment/prediction model get result
+		// 2. SaveIntoDB(result) -> save prediction result in to postgres
 	}
 	log.Printf("At the end of my job, let's rest now! Completed time %s", time.Now().Local().String())
-	return fmt.Sprintf("Resources are saved %s by!", name.Name), nil
-}
-
-// App - the struct which contains information about our app
-type App struct {
-	Name    string
-	Version string
+	return fmt.Sprintf("Resources are saved,!"), nil
 }
 
 func main() {
