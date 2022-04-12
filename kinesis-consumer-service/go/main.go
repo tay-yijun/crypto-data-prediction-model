@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/aws/aws-lambda-go/events"
+	"kinesis_consumer_service/controllers"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -24,9 +25,9 @@ func HandleRequest(ctx context.Context, kinesisEvent events.KinesisEvent) (strin
 		dataBytes := kinesisRecord.Data
 		dataText := string(dataBytes)
 		fmt.Printf("%s Data = %s \n", record.EventName, dataText)
-		// todo:
-		// 1. result := GetPredictionResult(kinesisRecord.Data) -> Call sentiment/prediction model get result
-		// 2. SaveIntoDB(result) -> save prediction result in to postgres
+		if err := controllers.Run(kinesisRecord.Data); err != nil {
+			return "", err
+		}
 	}
 	log.Printf("At the end of my job, let's rest now! Completed time %s", time.Now().Local().String())
 	return fmt.Sprintf("Resources are saved,!"), nil
