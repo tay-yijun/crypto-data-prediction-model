@@ -1,2 +1,2 @@
-go/vendor
+go/vendor/*
 python/.venv
