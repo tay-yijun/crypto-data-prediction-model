@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -18,7 +17,7 @@ import (
 //go:generate mockery --name=HTTPClient --inpackage=false --output=./mocks
 // HTTPClient interface helps us to mock in test case
 type HTTPClient interface {
-	MakeRequest(ctx context.Context, httpMethod string, url *url.URL, requestData interface{}) ([]byte, int, error)
+	MakeRequest(ctx context.Context, httpMethod string, url *url.URL, requestData []byte) ([]byte, int, error)
 }
 
 // HttPConfig config to make rest call
@@ -48,7 +47,7 @@ func (c *client) do(req *http.Request) (*http.Response, error) {
 }
 
 // MakeRequest to make rest http call to twitter
-func (c *client) MakeRequest(ctx context.Context, httpMethod string, url *url.URL, requestData interface{}) ([]byte, int, error) {
+func (c *client) MakeRequest(ctx context.Context, httpMethod string, url *url.URL, requestData []byte) ([]byte, int, error) {
 	log := logrus.Logger{}
 	var statusCode int
 	/* #nosec */
@@ -56,15 +55,9 @@ func (c *client) MakeRequest(ctx context.Context, httpMethod string, url *url.UR
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: !c.config.SSLEnabled},
 	}
 	c.httpClient.Transport = tr
-
-	body, errJSON := json.Marshal(requestData)
-	if errJSON != nil {
-		return nil, statusCode, errJSON
-	}
 	var req *http.Request
 	var err error
-	log.Info("Payload: %s" + string(body))
-	req, err = http.NewRequestWithContext(ctx, httpMethod, url.String(), bytes.NewBuffer(body))
+	req, err = http.NewRequestWithContext(ctx, httpMethod, url.String(), bytes.NewBuffer(requestData))
 	if err != nil {
 		log.WithError(err).Infof("error occurred while making request")
 		return nil, statusCode, fmt.Errorf("error occurred while making token request: %v", err)

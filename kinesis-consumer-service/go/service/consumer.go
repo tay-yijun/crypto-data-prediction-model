@@ -84,3 +84,4 @@ func GetKinesisConsumer() error {
 	}
 	return nil
 }
+

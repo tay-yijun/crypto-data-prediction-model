@@ -44,7 +44,7 @@ func SetupDB() error {
 			log.WithError(err).Println("db err: ", err)
 			return err
 		}
-	} else if driver == "postgres" { // POSTGRES
+	} else  { // POSTGRES
 		var postgresInfo string
 		if os.Getenv("GO_ENV") == "production" {
 			postgresInfo = "host=" + os.Getenv(host) + " port=" + port + " user=" + os.Getenv(username) + " dbname=" + os.Getenv(database) + "  sslmode=disable password=" + os.Getenv(password)

@@ -1,2 +1,4 @@
 go/vendor/*
 python/.venv
+*.zip
+main

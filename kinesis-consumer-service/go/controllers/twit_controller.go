@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	log "github.com/sirupsen/logrus"
 	"kinesis_consumer_service/helpers"
 	"kinesis_consumer_service/pkg/config"
@@ -16,14 +17,6 @@ import (
 
 // TwitterInstance ...
 type TwitterInstance struct{}
-
-// TwitterI ...
-//go:generate mockery --name=TwitterI --inpackage=false --output=./mocks
-// TwitterI interface helps us to mock sync api call
-type TwitterI interface {
-	SyncTwitterResource()
-}
-
 // PerPAGE ...
 const PerPAGE = 100
 
@@ -67,15 +60,21 @@ func saveTwits(config helpers.HttPConfig, path *url.URL, data []byte) error {
 	}
 	responseData, responseStatusCode, err := twitterClient.MakeRequest(context.Background(), "POST", path, data)
 	if err != nil {
+		fmt.Printf("%s", err.Error())
 		return err
 	}
 	if responseStatusCode != 200 {
+		fmt.Printf("StatusCode: %d \n", responseStatusCode)
 		return errors.New("invalid request")
 	}
 	err = json.Unmarshal(responseData, &response)
 	if err != nil {
+		log.WithError(err).Infof("failed to unmarshal response: %s", string(responseData))
 		return err
 	}
-	persistence.CreateOrUpdate(&response.Data)
+	var twits []models.Twit
+	twits = response.Data
+	persistence.CreateOrUpdate(&twits)
+	log.Info("saved into db successfully.")
 	return nil
 }
