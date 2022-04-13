@@ -27,3 +27,5 @@ price-forecasting/out/*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+/kinesis-consumer-service/python/.venv
+/kinesis-consumer-service/go/vendor
