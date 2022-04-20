@@ -1,0 +1,27 @@
+log: Dev
+env: development
+database:
+  host: localhost
+  port: 5432
+  ssl_enabled: false
+  driver: postgres
+  dbname: twitterdb
+  username: twitteruser
+  password: twitterpassword
+  max_lifetime: 7200
+  max_open_conns: 150
+  max_idle_conns: 50
+  twittertoken: twitter_TOKEN
+
+server:
+  port: 5000
+  graceful_shutdown: 5 #seconds
+  ip_check:
+    enable_ip_check: false
+    enable_ip_log: false
+    mode: debug
+
+encryption_key: MY_SECRET_ENCRYPTION_KEY
+
+metrics:
+  port: 5000

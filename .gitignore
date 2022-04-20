@@ -33,3 +33,5 @@ __pycache__/
 
 # Ignore virtualenv
 venv/
+/kinesis-consumer-service/python/.venv
+/kinesis-consumer-service/go/vendor
