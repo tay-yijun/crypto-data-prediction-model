@@ -23,9 +23,15 @@ __pycache__
 
 # output data
 price-forecasting/out/*
+price-forecasting/ts_data
+price-forecasting/ts_val_data
+price-forecasting/ts_forecasting_data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+
+# Ignore virtualenv
+venv/
 /kinesis-consumer-service/python/.venv
 /kinesis-consumer-service/go/vendor
