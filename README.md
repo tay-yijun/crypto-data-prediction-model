@@ -4,7 +4,7 @@ A project to build a data platform to ingest, aggregate and analyze crypto price
 We focus on analyzing BTC price and social media sentiment.
 
 ## Contributors
-Tay Yijun @tay-yijun
+Tay Yijun @tay-yijun  
 Lim Xing Kang Norman @frenoid  
 Joseph Zhou Weixin @joswx  
 Tonay Aizize Abuduaini @Aibier
