@@ -10,13 +10,13 @@ type TransactionRecordResponse struct {
 // RecentSearchAPIResponse ...
 type RecentSearchAPIResponse struct {
 	Data []interface{} `json:"data"`
-	Meta Meta `json:"meta"`
+	Meta Meta          `json:"meta"`
 }
 
 // Meta ...
 type Meta struct {
-	NewestID string `json:"newest_id"`
-	OldestID string `json:"oldest_id"`
-	ResultCount int `json:"result_count"`
-	NextToken string `json:"next_token"`
+	NewestID    string `json:"newest_id"`
+	OldestID    string `json:"oldest_id"`
+	ResultCount int    `json:"result_count"`
+	NextToken   string `json:"next_token"`
 }

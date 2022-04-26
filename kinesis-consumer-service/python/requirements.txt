@@ -1,0 +1,2 @@
+amazon-kclpy==2.0.6
+boto==2.49.0
